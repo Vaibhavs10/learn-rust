@@ -182,6 +182,61 @@ impl Config {
 }
 ```
 
+## 3.8 Putting It All Together: A Shopping Cart Example
+
+Let's see how data types and mutability work in a practical scenario:
+
+```rust
+fn main() {
+    // Immutable user data - won't change during session
+    let user_name = "Alice";
+    let user_id: u32 = 12345;
+    let is_premium: bool = true;
+    
+    // Mutable shopping cart - will change as user shops
+    let mut cart_items: Vec<String> = Vec::new();
+    let mut total_price: f64 = 0.0;
+    let mut item_count: u32 = 0;
+    
+    // Adding items to cart (mutation)
+    cart_items.push("Laptop".to_string());
+    cart_items.push("Mouse".to_string());
+    cart_items.push("Keyboard".to_string());
+    
+    // Updating totals (mutation)
+    total_price += 999.99;  // Laptop
+    total_price += 25.50;   // Mouse  
+    total_price += 79.99;   // Keyboard
+    item_count = cart_items.len() as u32;
+    
+    // Apply discount using immutable data
+    let discount_rate: f64 = if is_premium { 0.10 } else { 0.05 };
+    let discount_amount = total_price * discount_rate;
+    let final_price = total_price - discount_amount;
+    
+    // Display order summary (using compound types)
+    let order_summary = (user_id, item_count, final_price);
+    println!("User: {} (ID: {})", user_name, order_summary.0);
+    println!("Items: {}", order_summary.1);
+    println!("Total: ${:.2}", order_summary.2);
+    
+    // Shadowing for data transformation
+    let final_price = format!("${:.2}", final_price);  // f64 → String
+    println!("Formatted price: {}", final_price);
+}
+```
+
+**What this example shows:**
+- **Immutable variables** (`user_name`, `user_id`) for data that shouldn't change
+- **Mutable variables** (`cart_items`, `total_price`) for state that evolves
+- **Different data types** working together (strings, numbers, booleans, vectors)
+- **Type annotations** where clarity matters (`u32`, `f64`)
+- **Compound types** (tuple) for grouping related data
+- **Shadowing** for safe type transformations
+- **Safe arithmetic** with explicit type handling
+
+The compiler ensures you can't accidentally modify `user_name` or forget to mark `cart_items` as mutable—preventing bugs before they happen!
+
 ## Key Takeaways
 
 1. **Immutability prevents bugs** - especially in concurrent code
