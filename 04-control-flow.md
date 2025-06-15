@@ -354,248 +354,173 @@ for &num in &numbers {
 }
 ```
 
-## 4.8 Real-World Example: Task Management System
+## 4.8 Real-World Example: Simple Todo App
 
-Let's build a simple task management system that demonstrates all the control flow concepts we've learned. This example shows how these patterns work together in a practical application.
+Let's build a basic todo application that demonstrates the key control flow concepts in a practical way.
 
 ```rust
-use std::collections::HashMap;
-use std::fmt;
-
-// 1. Model the domain with enums (making invalid states impossible)
+// 1. Model the problem with enums - making invalid states impossible
 #[derive(Debug, Clone, PartialEq)]
 enum TaskStatus {
     Todo,
-    InProgress { assigned_to: String },
-    Completed { completed_by: String },
-    Cancelled { reason: String },
+    Done,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct Task {
     id: u32,
     title: String,
-    description: String,
     status: TaskStatus,
-    priority: Priority,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-enum Priority {
-    Low,
-    Medium,
-    High,
-    Critical,
-}
-
-// 2. Custom error type for our domain
+// 2. Simple error handling
 #[derive(Debug)]
-enum TaskError {
+enum TodoError {
     TaskNotFound(u32),
-    InvalidTransition { from: TaskStatus, to: TaskStatus },
     EmptyTitle,
-    UserNotFound(String),
 }
 
-impl fmt::Display for TaskError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            TaskError::TaskNotFound(id) => write!(f, "Task {} not found", id),
-            TaskError::InvalidTransition { from, to } => {
-                write!(f, "Cannot transition from {:?} to {:?}", from, to)
-            }
-            TaskError::EmptyTitle => write!(f, "Task title cannot be empty"),
-            TaskError::UserNotFound(user) => write!(f, "User '{}' not found", user),
-        }
-    }
-}
-
-// 3. Main task manager using all our control flow patterns
-struct TaskManager {
-    tasks: HashMap<u32, Task>,
+// 3. Main todo manager
+struct TodoApp {
+    tasks: Vec<Task>,
     next_id: u32,
-    users: Vec<String>,
 }
 
-impl TaskManager {
+impl TodoApp {
     fn new() -> Self {
         Self {
-            tasks: HashMap::new(),
+            tasks: Vec::new(),
             next_id: 1,
-            users: vec!["Alice".to_string(), "Bob".to_string(), "Charlie".to_string()],
         }
     }
 
-    // Pattern matching with Result for error handling
-    fn create_task(&mut self, title: String, description: String, priority: Priority) -> Result<u32, TaskError> {
-        // Early return pattern with ?
+    // Creating tasks with validation
+    fn add_task(&mut self, title: String) -> Result<u32, TodoError> {
+        // Early return pattern - check for empty title
         if title.trim().is_empty() {
-            return Err(TaskError::EmptyTitle);
+            return Err(TodoError::EmptyTitle);
         }
 
         let task = Task {
             id: self.next_id,
             title,
-            description,
             status: TaskStatus::Todo,
-            priority,
         };
 
-        self.tasks.insert(self.next_id, task);
+        self.tasks.push(task);
         let id = self.next_id;
         self.next_id += 1;
         Ok(id)
     }
 
-    // Exhaustive pattern matching for state transitions
-    fn update_task_status(&mut self, task_id: u32, new_status: TaskStatus) -> Result<(), TaskError> {
-        let task = self.tasks.get_mut(&task_id).ok_or(TaskError::TaskNotFound(task_id))?;
-        
-        // Validate transition using match
-        match (&task.status, &new_status) {
-            // Valid transitions
-            (TaskStatus::Todo, TaskStatus::InProgress { assigned_to }) => {
-                if !self.users.contains(assigned_to) {
-                    return Err(TaskError::UserNotFound(assigned_to.clone()));
-                }
-            }
-            (TaskStatus::InProgress { .. }, TaskStatus::Completed { .. }) => {}
-            (TaskStatus::Todo, TaskStatus::Cancelled { .. }) => {}
-            (TaskStatus::InProgress { .. }, TaskStatus::Cancelled { .. }) => {}
-            
-            // Invalid transitions
-            (from, to) => {
-                return Err(TaskError::InvalidTransition {
-                    from: from.clone(),
-                    to: to.clone(),
-                });
-            }
-        }
+    // Pattern matching for state changes
+    fn toggle_task(&mut self, task_id: u32) -> Result<(), TodoError> {
+        // Find the task using iterator patterns
+        let task = self.tasks
+            .iter_mut()
+            .find(|task| task.id == task_id)
+            .ok_or(TodoError::TaskNotFound(task_id))?;
 
-        task.status = new_status;
+        // Match on current status to toggle
+        task.status = match task.status {
+            TaskStatus::Todo => TaskStatus::Done,
+            TaskStatus::Done => TaskStatus::Todo,
+        };
+
         Ok(())
     }
 
-    // Iterator patterns for filtering and processing
-    fn get_tasks_by_status(&self, status: TaskStatus) -> Vec<&Task> {
-        self.tasks
-            .values()
-            .filter(|task| std::mem::discriminant(&task.status) == std::mem::discriminant(&status))
-            .collect()
+    // Using iterators to filter and count
+    fn get_summary(&self) -> String {
+        let total = self.tasks.len();
+        let completed = self.tasks
+            .iter()
+            .filter(|task| task.status == TaskStatus::Done)
+            .count();
+        let remaining = total - completed;
+
+        // Conditional logic for user-friendly messages
+        match (total, remaining) {
+            (0, _) => "No tasks yet! Add some to get started.".to_string(),
+            (_, 0) => "🎉 All tasks completed! Great job!".to_string(),
+            (_, 1) => "1 task remaining".to_string(),
+            (_, n) => format!("{} tasks remaining", n),
+        }
     }
 
-    fn get_high_priority_tasks(&self) -> Vec<&Task> {
-        self.tasks
-            .values()
-            .filter(|task| matches!(task.priority, Priority::High | Priority::Critical))
-            .collect()
-    }
-
-    // Complex business logic using multiple control flow patterns
-    fn process_daily_tasks(&mut self) -> Result<String, TaskError> {
-        let mut report = String::new();
-        let mut processed_count = 0;
-
-        // Iterate over all tasks
-        for task in self.tasks.values() {
-            // Pattern match on status and priority
-            match (&task.status, &task.priority) {
-                (TaskStatus::Todo, Priority::Critical) => {
-                    report.push_str(&format!("⚠️  URGENT: {} (ID: {})\n", task.title, task.id));
-                    processed_count += 1;
-                }
-                (TaskStatus::InProgress { assigned_to }, Priority::High) => {
-                    report.push_str(&format!("🔥 High priority task '{}' assigned to {}\n", 
-                                           task.title, assigned_to));
-                    processed_count += 1;
-                }
-                (TaskStatus::Completed { completed_by }, _) => {
-                    report.push_str(&format!("✅ Completed: {} (by {})\n", 
-                                           task.title, completed_by));
-                    processed_count += 1;
-                }
-                _ => {} // Handle other cases silently
-            }
+    // Display all tasks using iteration and pattern matching
+    fn display_tasks(&self) {
+        if self.tasks.is_empty() {
+            println!("No tasks to display.");
+            return;
         }
 
-        // Conditional logic for report summary
-        let summary = if processed_count == 0 {
-            "No tasks requiring attention today.".to_string()
-        } else if processed_count == 1 {
-            "1 task processed.".to_string()
-        } else {
-            format!("{} tasks processed.", processed_count)
-        };
-
-        Ok(format!("{}\n📊 Summary: {}", report, summary))
+        println!("📋 Your Tasks:");
+        for task in &self.tasks {
+            let status_icon = match task.status {
+                TaskStatus::Todo => "⏳",
+                TaskStatus::Done => "✅",
+            };
+            println!("  {} {} (ID: {})", status_icon, task.title, task.id);
+        }
+        println!("\n{}", self.get_summary());
     }
 }
 
-// 4. Demonstration function showing the system in action
-fn demonstrate_task_manager() -> Result<(), TaskError> {
-    let mut manager = TaskManager::new();
+// 4. Demo function showing everything working together
+fn demo_todo_app() {
+    let mut app = TodoApp::new();
 
-    // Create some tasks
-    let task1 = manager.create_task(
-        "Fix critical bug".to_string(),
-        "System crashes on startup".to_string(),
-        Priority::Critical,
-    )?;
-
-    let task2 = manager.create_task(
-        "Write documentation".to_string(),
-        "Update API docs".to_string(),
-        Priority::Medium,
-    )?;
-
-    let task3 = manager.create_task(
-        "Code review".to_string(),
-        "Review PR #123".to_string(),
-        Priority::High,
-    )?;
-
-    // Update task statuses using pattern matching
-    manager.update_task_status(task1, TaskStatus::InProgress { 
-        assigned_to: "Alice".to_string() 
-    })?;
-
-    manager.update_task_status(task2, TaskStatus::Completed { 
-        completed_by: "Bob".to_string() 
-    })?;
-
-    // Generate daily report
-    let report = manager.process_daily_tasks()?;
-    println!("{}", report);
-
-    // Demonstrate error handling
-    match manager.update_task_status(999, TaskStatus::Todo) {
-        Ok(_) => println!("Should not reach here"),
-        Err(e) => println!("Expected error: {}", e),
+    // Add some tasks
+    match app.add_task("Learn Rust".to_string()) {
+        Ok(id) => println!("✅ Added task with ID: {}", id),
+        Err(e) => println!("❌ Failed to add task: {:?}", e),
     }
 
-    Ok(())
+    app.add_task("Write code".to_string()).unwrap();
+    app.add_task("Deploy app".to_string()).unwrap();
+
+    // Display initial state
+    app.display_tasks();
+
+    // Complete some tasks
+    println!("\n📝 Completing first task...");
+    if let Err(e) = app.toggle_task(1) {
+        println!("Error: {:?}", e);
+    }
+
+    app.display_tasks();
+
+    // Try to complete non-existent task (error handling)
+    println!("\n🚫 Trying to toggle non-existent task...");
+    match app.toggle_task(999) {
+        Ok(_) => println!("Task toggled successfully"),
+        Err(TodoError::TaskNotFound(id)) => println!("Task {} not found!", id),
+        Err(e) => println!("Other error: {:?}", e),
+    }
 }
 
-// Usage: demonstrate_task_manager().unwrap();
+// Usage: demo_todo_app();
 ```
 
-### What This Example Demonstrates:
+### What This Simplified Example Shows:
 
-1. **Enum Modeling**: `TaskStatus` and `Priority` make invalid states impossible
-2. **Pattern Matching**: Exhaustive `match` statements for state transitions
-3. **Error Handling**: Custom error types with `Result` and `?` operator
-4. **Iterator Patterns**: Filtering and processing collections safely
-5. **Conditional Logic**: `if/else` for business logic decisions
-6. **Complex Control Flow**: Multiple patterns working together in `process_daily_tasks()`
+1. **Enum for State**: `TaskStatus` prevents invalid states (no "maybe done" tasks!)
+2. **Pattern Matching**: 
+   - `match` for toggling task status
+   - `match` for generating user-friendly messages
+3. **Error Handling**: Simple `Result` types with meaningful errors
+4. **Iterator Patterns**: Using `.filter()` and `.find()` instead of manual loops
+5. **Conditional Logic**: `if/else` and `match` for different scenarios
 
-### Key Patterns in Action:
+### Key Control Flow Patterns:
 
-- **State Validation**: The `update_task_status` method uses `match` to ensure only valid transitions happen
-- **Error Propagation**: The `?` operator handles errors cleanly throughout
-- **Safe Iteration**: No manual indexing, just expressive iterator chains
-- **Exhaustive Handling**: Every possible state is explicitly handled
+- **Early Returns**: Check for errors first, continue with valid data
+- **Exhaustive Matching**: Handle every possible task status
+- **Safe Iteration**: No index errors, just expressive operations
+- **Error Propagation**: Use `?` and `match` to handle failures gracefully
 
-This is how control flow patterns scale from simple examples to real applications—by composing these safe, expressive constructs into robust business logic.
+This example is much simpler but still demonstrates how Rust's control flow patterns work together to create reliable, maintainable code. The compiler ensures we handle all cases and catch errors early!
 
 ## Key Takeaways
 
