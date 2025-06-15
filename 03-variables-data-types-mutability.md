@@ -1,87 +1,193 @@
 # 3. Variables, Data Types, and Mutability
 
-Rust is a statically typed language with powerful type inference and strict rules about mutability.
+Rust's approach to variables isn't just different—it prevents entire categories of bugs at compile time.
 
-## 3.1 Variables
+## 3.1 Variable Declaration and Core Types
 
-Declare a variable with `let`:
+Understanding Rust's type system is crucial for writing safe, efficient code.
 
+### Variable Declaration Patterns
 ```rust
-let x = 5;
-println!("x = {}", x);
+let name = "Alice";              // Type inferred as &str
+let age: u32 = 25;              // Explicit type annotation
+let mut score = 0;              // Mutable variable
+let (x, y) = (10, 20);          // Destructuring assignment
 ```
 
-Variables are immutable by default. This means you cannot change their value unless you make them mutable.
+### Scalar Types: The Building Blocks
 
-## 3.2 Mutability
-
-To make a variable mutable, use `mut`:
-
+**Integers** - Choose based on your domain:
 ```rust
-let mut y = 10;
-println!("y = {}", y);
-y = 20;
-println!("y = {}", y);
+let user_id: u32 = 12345;       // Always positive, up to 4.2 billion
+let temperature: i16 = -40;     // Can be negative, -32k to +32k
+let file_size: u64 = 1_048_576; // Large positive numbers
+let offset: isize = -10;        // Pointer-sized, platform dependent
 ```
 
-## 3.3 Constants
-
-Constants are always immutable and must have a type annotation. Use `const`:
-
+**Floating Point** - When precision matters:
 ```rust
-const MAX_POINTS: u32 = 100_000;
-println!("Max points: {}", MAX_POINTS);
+let price: f32 = 19.99;         // 32-bit, sufficient for most decimals
+let scientific: f64 = 6.022e23; // 64-bit, high precision calculations
 ```
 
-## 3.4 Shadowing
-
-You can declare a new variable with the same name as a previous one. This is called shadowing:
-
+**Booleans and Characters**:
 ```rust
-let z = 5;
-let z = z + 1;
-let z = z * 2;
-println!("z = {}", z); // z = 12
+let is_authenticated: bool = true;
+let grade: char = 'A';          // Unicode scalar, 4 bytes
+let emoji: char = '🦀';         // Rust crab!
 ```
 
-## 3.5 Data Types
+### Compound Types: Grouping Data
 
-Rust has scalar and compound types.
-
-### Scalar Types
-- Integers: `i32`, `u32`, `i64`, etc.
-- Floating-point: `f32`, `f64`
-- Booleans: `bool`
-- Characters: `char`
-
-Example:
+**Tuples** - Fixed-size, mixed types:
 ```rust
-let a: i32 = -10;
-let b: u32 = 20;
-let c: f64 = 3.14;
-let d: bool = true;
-let e: char = 'R';
+let person: (String, u32, bool) = ("Bob".to_string(), 30, true);
+let rgb: (u8, u8, u8) = (255, 0, 128);  // Color values 0-255
+let coordinates = (12.5, -3.8);         // Inferred as (f64, f64)
 ```
 
-### Compound Types
-- Tuples: group values of different types
-- Arrays: fixed-size lists of values
-
-Example:
+**Arrays** - Fixed-size, same type:
 ```rust
-let tup: (i32, f64, u8) = (500, 6.4, 1);
-let arr: [i32; 3] = [1, 2, 3];
+let weekdays: [&str; 5] = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+let buffer: [u8; 1024] = [0; 1024];     // Initialize 1024 zeros
+let primes = [2, 3, 5, 7, 11];          // Inferred as [i32; 5]
 ```
 
-## 3.6 Type Inference
-
-Rust can often infer the type:
+### String Types: Text Handling Done Right
 
 ```rust
-let score = 42; // inferred as i32
-let pi = 3.1415; // inferred as f64
+let literal: &str = "Hello";            // String slice, immutable
+let owned: String = "World".to_string(); // Owned string, growable
+let formatted = format!("{}!", owned);   // Create new String
 ```
 
----
+### Collection Types: Dynamic Data
 
-Try changing values, types, and mutability to see how Rust enforces safety! 
+```rust
+let mut numbers: Vec<i32> = vec![1, 2, 3];  // Growable array
+let mut scores = Vec::new();                // Empty vector, type inferred later
+scores.push(95);                           // Now Vec<i32>
+
+use std::collections::HashMap;
+let mut users: HashMap<u32, String> = HashMap::new();
+users.insert(1, "Alice".to_string());
+```
+
+### Reference Types: Borrowing Without Owning
+
+```rust
+let data = vec![1, 2, 3, 4, 5];
+let slice: &[i32] = &data[1..4];        // Borrow part of the vector
+let first: &i32 = &data[0];             // Borrow single element
+```
+
+## 3.2 Immutability by Default: Why It Matters
+
+```rust
+let connection_count = 0;
+// connection_count = 1; // ❌ Compile error!
+```
+
+This isn't restrictive—it's **protective**. Immutable variables prevent accidental modifications that cause bugs in concurrent code, make reasoning about program state easier, and enable compiler optimizations.
+
+**When you need change, be explicit:**
+```rust
+let mut active_users = Vec::new();
+active_users.push("alice");  // ✅ Clear intent
+```
+
+## 3.3 Shadowing vs Mutation: Choose Your Tool
+
+Shadowing creates a **new variable** with the same name:
+```rust
+let data = "42";           // String
+let data = data.parse::<i32>().unwrap();  // i32
+// Type transformation without mutation
+```
+
+Mutation changes an **existing variable**:
+```rust
+let mut counter = 0;
+counter += 1;  // Same variable, new value
+```
+
+**Rule of thumb:** Use shadowing for type/value transformations, mutation for accumulating changes.
+
+## 3.4 Smart Type System in Action
+
+Rust infers types but catches mismatches:
+```rust
+let user_id = 42;           // i32 by default
+let scores = vec![85, 92, 78];  // Vec<i32>
+
+// This won't compile - prevents subtle bugs
+// scores.push("invalid");  // ❌ Type mismatch
+```
+
+**Be explicit when precision matters:**
+```rust
+let temperature: f64 = 98.6;  // Medical precision
+let timeout_ms: u64 = 5000;   // No negative timeouts
+```
+
+## 3.5 Zero-Cost Abstractions with Compound Types
+
+**Tuples** for related data without overhead:
+```rust
+fn get_user_info() -> (String, u32, bool) {
+    ("Alice".to_string(), 25, true)  // name, age, is_active
+}
+
+let (name, age, _) = get_user_info();  // Destructure what you need
+```
+
+**Arrays** for known-size collections:
+```rust
+let daily_temps: [f64; 7] = [20.1, 22.5, 19.8, 21.2, 23.0, 24.1, 20.9];
+// Stack-allocated, no heap allocation overhead
+```
+
+## 3.6 Constants: More Than Just Immutable
+
+Constants are computed at **compile time** and have global scope:
+```rust
+const MAX_CONNECTIONS: usize = 1000;
+const ERROR_MESSAGE: &str = "Connection failed";
+
+// Use for configuration, lookup tables, magic numbers
+const HTTP_OK: u16 = 200;
+```
+
+## 3.7 Practical Pattern: Safe State Management
+
+```rust
+struct Config {
+    max_retries: u32,
+    timeout_ms: u64,
+}
+
+impl Config {
+    fn new() -> Self {
+        Self {
+            max_retries: 3,      // Immutable after creation
+            timeout_ms: 5000,
+        }
+    }
+    
+    // Controlled mutation through methods
+    fn with_timeout(mut self, ms: u64) -> Self {
+        self.timeout_ms = ms;
+        self
+    }
+}
+```
+
+## Key Takeaways
+
+1. **Immutability prevents bugs** - especially in concurrent code
+2. **Explicit mutability** makes change obvious in code reviews
+3. **Type inference** reduces boilerplate while maintaining safety
+4. **Shadowing** enables clean data transformations
+5. **Choose the right type** for your domain (u32 for counts, f64 for precision)
+
+The compile-time guarantees aren't restrictions—they're your safety net for building reliable software. 
